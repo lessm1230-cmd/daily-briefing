@@ -1,22 +1,42 @@
-# 오늘의 브리핑 자동 업데이트 페이지 v2
+# 오늘의 브리핑 v3
 
-이 버전은 GitHub Actions가 매일 최신 데이터를 만든 뒤 GitHub Pages에 직접 배포합니다.
+순서:
+1. 오늘의 운세
+2. 오늘의 날씨
+3. 아침 헤드라인 뉴스
+4. 부동산 주요뉴스
+5. 오늘의 긍정코멘트 한마디
 
-## 처음 설치
-1. GitHub에서 새 PUBLIC 저장소를 만듭니다.
-2. 이 폴더 안의 파일/폴더를 모두 업로드합니다.
-3. 저장소 Settings → Pages → Build and deployment → Source에서 `GitHub Actions`를 선택합니다.
-4. Actions 탭 → `Daily Briefing Update & Deploy` → `Run workflow`로 최초 실행합니다.
-5. 실행이 초록색 체크가 되면 Settings → Pages에 공개 주소가 표시됩니다.
+각 섹션 오른쪽에 복사 버튼이 있고, 상단에는 전체복사 버튼이 있습니다.
 
-## 자동 실행
-매일 한국시간 약 07:05에 자동 실행되도록 설정되어 있습니다.
+## 중요
+- 운세: 다른 매체 문구를 복사하지 않고 매일 날짜별로 새로 생성되는 원문형 운세입니다.
+- 날씨: Open-Meteo 데이터를 이용해 오전 8시 → 오후 3시 날씨 아이콘과 일 최저/최고기온을 표시합니다.
+- 아침 헤드라인: Google News 한국 RSS의 최신 제목만 표시합니다.
+- 부동산 주요뉴스: NAVER API HUB 뉴스 검색 API를 사용합니다.
+- 긍정코멘트: 요일에 맞춰 매일 바뀝니다.
 
-## 파일
-- index.html: 웹 화면 + 복사 버튼
-- data.json: 예시 데이터(배포 때 최신 데이터로 다시 생성)
-- scripts/update.py: 날씨/뉴스 수집
-- .github/workflows/daily.yml: 매일 자동 실행 + Pages 배포
+## GitHub에서 필요한 설정
 
-## 참고
-GitHub Actions 예약 실행은 정확히 초 단위 보장되는 알람이 아니므로 트래픽 상황에 따라 몇 분 지연될 수 있습니다.
+### 1) Pages
+Repository → Settings → Pages → Source = GitHub Actions
+
+### 2) 네이버 부동산 뉴스용 API 키
+2026년 현재 신규 검색 API는 NAVER Cloud Platform의 NAVER API HUB에서 발급합니다.
+
+발급 후 GitHub Repository에서:
+Settings → Secrets and variables → Actions → New repository secret
+
+두 개를 등록:
+- Name: NAVER_CLIENT_ID
+- Name: NAVER_CLIENT_SECRET
+
+값에는 NAVER API HUB에서 발급받은 Client ID / Client Secret을 각각 입력합니다.
+
+### 3) 수동 테스트
+Actions → Daily Briefing Update & Deploy → Run workflow
+
+초록색 체크가 뜨면 배포 성공입니다.
+
+### 4) 자동 실행
+매일 한국시간 오전 7시 5분경 자동 실행됩니다.

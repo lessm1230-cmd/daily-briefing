@@ -5,163 +5,94 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>오늘의 브리핑</title>
   <style>
-    :root{
-      --bg:#f6f7fb; --card:#fff; --text:#202124; --muted:#6b7280;
-      --line:#e5e7eb; --accent:#2563eb; --ok:#0f766e;
-    }
+    :root{--bg:#f6f7fb;--card:#fff;--text:#202124;--muted:#6b7280;--line:#e5e7eb;--accent:#2563eb}
     *{box-sizing:border-box}
     body{margin:0;font-family:Pretendard,"Noto Sans KR",system-ui,sans-serif;background:var(--bg);color:var(--text)}
-    .wrap{max-width:960px;margin:0 auto;padding:28px 18px 70px}
+    .wrap{max-width:980px;margin:0 auto;padding:28px 18px 70px}
     .top{display:flex;gap:16px;align-items:flex-start;justify-content:space-between;margin-bottom:22px}
-    h1{font-size:28px;margin:0 0 6px}
-    .meta{color:var(--muted);font-size:14px}
-    .refresh{border:1px solid var(--line);background:#fff;border-radius:10px;padding:10px 12px;cursor:pointer}
+    h1{font-size:28px;margin:0 0 6px}.meta{color:var(--muted);font-size:14px}
+    .refresh,.copy,.copyall{border:1px solid var(--line);background:#fff;border-radius:10px;padding:9px 12px;cursor:pointer}
+    .copyall{background:#111827;color:#fff;border-color:#111827;margin-left:8px}
     .section{background:var(--card);border:1px solid var(--line);border-radius:16px;margin:14px 0;padding:18px;box-shadow:0 2px 8px rgba(0,0,0,.03)}
     .section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
-    .section h2{font-size:19px;margin:0}
-    .copy{border:1px solid var(--line);background:#fff;border-radius:9px;padding:8px 11px;cursor:pointer;font-size:13px}
-    .copy:hover{border-color:#c7d2fe;background:#eef2ff}
-    .body{white-space:pre-wrap;line-height:1.72;font-size:15px}
-    .item{padding:12px 0;border-top:1px dashed var(--line)}
-    .item:first-child{border-top:0;padding-top:0}
-    .item-title{font-weight:700;margin-bottom:4px}
-    .item-sub{color:var(--muted);font-size:13px}
-    .link{color:var(--accent);text-decoration:none}
-    .pill{display:inline-block;background:#eef2ff;color:#3730a3;border-radius:999px;padding:4px 9px;font-size:12px;margin-right:6px}
+    .section h2{font-size:19px;margin:0}.copy{font-size:13px}.copy:hover{background:#eef2ff}
+    .body{white-space:pre-wrap;line-height:1.74;font-size:15px}
+    .item{padding:11px 0;border-top:1px dashed var(--line)}.item:first-child{border-top:0;padding-top:0}
+    .item-title{font-weight:700;line-height:1.55}.link{display:inline-block;margin-top:4px;color:var(--accent);text-decoration:none;word-break:break-all}
     .footer{color:var(--muted);font-size:12px;margin-top:18px;text-align:center}
     #toast{position:fixed;right:18px;bottom:18px;background:#111827;color:#fff;padding:11px 14px;border-radius:10px;opacity:0;transform:translateY(8px);transition:.2s;pointer-events:none}
     #toast.show{opacity:1;transform:none}
-    @media (max-width:640px){h1{font-size:23px}.wrap{padding:18px 12px 55px}.section{padding:15px}.top{align-items:center}}
+    @media(max-width:640px){h1{font-size:23px}.wrap{padding:18px 12px 55px}.section{padding:15px}.top{align-items:center}}
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="top">
-      <div>
-        <h1>🗂️ 오늘의 브리핑</h1>
-        <div class="meta" id="meta">불러오는 중...</div>
-      </div>
-      <button class="refresh" onclick="loadData()">↻ 새로고침</button>
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h1>🗂️ 오늘의 브리핑</h1>
+      <div class="meta" id="meta">불러오는 중...</div>
     </div>
-
-    <div id="content"></div>
-    <div class="footer">데이터는 data.json을 기준으로 표시됩니다. GitHub Actions가 매일 자동 갱신할 수 있습니다.</div>
+    <div>
+      <button class="refresh" onclick="loadData()">↻ 새로고침</button>
+      <button class="copyall" onclick="copyAll()">📋 전체복사</button>
+    </div>
   </div>
-  <div id="toast">복사했습니다</div>
-
+  <div id="content"></div>
+  <div class="footer">매일 자동 갱신 · 각 항목의 복사 버튼을 누르면 카카오톡/메모장 등에 바로 붙여넣을 수 있습니다.</div>
+</div>
+<div id="toast">복사했습니다</div>
 <script>
-let latestData = null;
-
-function escapeHtml(s=''){
-  return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-}
-
+let latestData=null;
 function copyText(text){
   navigator.clipboard.writeText(text).then(()=>{
-    const t=document.getElementById('toast');
-    t.classList.add('show');
+    const t=document.getElementById('toast'); t.classList.add('show');
     setTimeout(()=>t.classList.remove('show'),1200);
   });
 }
-
-function sectionToText(section){
-  let out = section.title + '\n';
-  if(section.text) out += '\n' + section.text + '\n';
-  if(section.items){
-    section.items.forEach((x,i)=>{
-      out += `\n${i+1}. ${x.title || ''}`;
-      if(x.summary) out += `\n${x.summary}`;
-      if(x.url) out += `\n${x.url}`;
-      out += '\n';
+function sectionToText(s){
+  let out=s.title+"\n\n";
+  if(s.text) out+=s.text.trim()+"\n";
+  if(s.items){
+    s.items.forEach((x,i)=>{
+      out += `${i+1}. ${x.title||''}\n`;
+      if(x.url) out += `${x.url}\n`;
+      if(x.summary) out += `${x.summary}\n`;
+      out += "\n";
     });
   }
   return out.trim();
 }
-
-function renderSection(section){
-  const wrap = document.createElement('section');
-  wrap.className = 'section';
-
-  const head = document.createElement('div');
-  head.className = 'section-head';
-
-  const h2 = document.createElement('h2');
-  h2.textContent = section.title;
-  head.appendChild(h2);
-
-  const btn = document.createElement('button');
-  btn.className = 'copy';
-  btn.textContent = '📋 복사';
-  btn.onclick = ()=>copyText(sectionToText(section));
-  head.appendChild(btn);
-
-  wrap.appendChild(head);
-
-  if(section.text){
-    const body = document.createElement('div');
-    body.className='body';
-    body.textContent=section.text;
-    wrap.appendChild(body);
-  }
-
-  if(section.items){
-    const list = document.createElement('div');
-    section.items.forEach(x=>{
-      const item=document.createElement('div');
-      item.className='item';
-
-      const title=document.createElement('div');
-      title.className='item-title';
-      title.textContent=x.title || '';
-      item.appendChild(title);
-
-      if(x.summary){
-        const summary=document.createElement('div');
-        summary.className='body';
-        summary.textContent=x.summary;
-        item.appendChild(summary);
-      }
-
-      if(x.meta){
-        const sub=document.createElement('div');
-        sub.className='item-sub';
-        sub.textContent=x.meta;
-        item.appendChild(sub);
-      }
-
-      if(x.url){
-        const a=document.createElement('a');
-        a.className='link';
-        a.href=x.url;
-        a.target='_blank';
-        a.rel='noopener';
-        a.textContent='원문 보기';
-        item.appendChild(a);
-      }
+function copyAll(){
+  if(!latestData) return;
+  copyText(latestData.sections.map(sectionToText).join("\n\n──────────────\n\n"));
+}
+function renderSection(s){
+  const wrap=document.createElement('section'); wrap.className='section';
+  const head=document.createElement('div'); head.className='section-head';
+  const h2=document.createElement('h2'); h2.textContent=s.title; head.appendChild(h2);
+  const btn=document.createElement('button'); btn.className='copy'; btn.textContent='📋 복사';
+  btn.onclick=()=>copyText(sectionToText(s)); head.appendChild(btn); wrap.appendChild(head);
+  if(s.text){ const b=document.createElement('div'); b.className='body'; b.textContent=s.text; wrap.appendChild(b); }
+  if(s.items){
+    const list=document.createElement('div');
+    s.items.forEach((x,i)=>{
+      const item=document.createElement('div'); item.className='item';
+      const title=document.createElement('div'); title.className='item-title'; title.textContent=`${i+1}. ${x.title||''}`; item.appendChild(title);
+      if(x.url){ const a=document.createElement('a'); a.className='link'; a.href=x.url; a.target='_blank'; a.rel='noopener'; a.textContent=x.url; item.appendChild(a); }
       list.appendChild(item);
     });
     wrap.appendChild(list);
   }
-
   return wrap;
 }
-
 async function loadData(){
-  const res = await fetch('data.json?ts=' + Date.now(), {cache:'no-store'});
-  latestData = await res.json();
-
-  document.getElementById('meta').textContent =
-    `${latestData.date_label || ''} · 마지막 업데이트 ${latestData.updated_at || ''}`;
-
-  const content=document.getElementById('content');
-  content.innerHTML='';
-  latestData.sections.forEach(s=>content.appendChild(renderSection(s)));
+  const res=await fetch('data.json?ts='+Date.now(),{cache:'no-store'});
+  latestData=await res.json();
+  document.getElementById('meta').textContent=`${latestData.date_label} · 마지막 업데이트 ${latestData.updated_at}`;
+  const c=document.getElementById('content'); c.innerHTML='';
+  latestData.sections.forEach(s=>c.appendChild(renderSection(s)));
 }
-
-loadData().catch(err=>{
-  document.getElementById('meta').textContent='data.json을 불러오지 못했습니다.';
-  console.error(err);
-});
+loadData().catch(()=>document.getElementById('meta').textContent='data.json을 불러오지 못했습니다.');
 </script>
 </body>
 </html>

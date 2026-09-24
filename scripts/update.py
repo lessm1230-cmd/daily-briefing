@@ -173,15 +173,52 @@ def naver_news(now, limit=10):
         "X-NCP-APIGW-API-KEY":secret,
     }
 
-    queries=["부동산","아파트","주택 공급","청약 분양","재건축 재개발"]
+    # 부동산 핵심 검색어
+    queries=[
+        "부동산",
+        "아파트",
+        "집값",
+        "주택 공급",
+        "청약 분양",
+        "전세 월세",
+        "재건축 재개발"
+    ]
+
+    # 제목에 아래 키워드가 하나 이상 있어야 최종 노출
+    include_keywords=[
+        "부동산","아파트","주택","집값","전세","월세","청약","분양",
+        "재건축","재개발","토허","토지거래허가","매매","임대","임차",
+        "공급","입주","미분양","주담대","주택담보","분양가","전셋값",
+        "월셋값","공시가격","정비사업","조합원","입주권","분양권",
+        "LH","한국토지주택공사","국토부","국토교통부","부동산원",
+        "용적률","건폐율","재정비","신도시","택지","오피스텔"
+    ]
+
+    # 부동산 키워드가 우연히 섞여도 아래 유형이면 제외
+    exclude_keywords=[
+        "연예","가수","배우","아이돌","TSMC","반도체","의사","병원",
+        "살인","사망","화재","대통령 지지율","정당","국민의힘","민주당",
+        "야구","축구","농구","코인","비트코인","증시","주식"
+    ]
+
     today=now.astimezone(KST).date()
     collected=[]
     seen=set()
 
+    def is_realestate_title(title):
+        compact = re.sub(r"\s+","",title)
+        if any(bad in compact for bad in exclude_keywords):
+            return False
+        return any(good in compact for good in include_keywords)
+
     for query in queries:
         try:
             q=urllib.parse.urlencode({
-                "query":query,"display":100,"start":1,"sort":"date","format":"json"
+                "query":query,
+                "display":100,
+                "start":1,
+                "sort":"date",
+                "format":"json"
             })
             url="https://naverapihub.apigw.ntruss.com/search/v1/news?"+q
             j=get_json(url,headers=headers,retries=2,timeout=15)
@@ -191,6 +228,7 @@ def naver_news(now, limit=10):
                 link=(it.get("link") or "").strip()
                 pub_raw=(it.get("pubDate") or "").strip()
 
+                # 네이버 뉴스 내부 기사만
                 if not (
                     "n.news.naver.com/" in link
                     or "news.naver.com/" in link
@@ -198,6 +236,11 @@ def naver_news(now, limit=10):
                 ):
                     continue
 
+                # 제목 자체가 부동산 기사인지 한 번 더 엄격하게 검사
+                if not is_realestate_title(title):
+                    continue
+
+                # 오늘 날짜 기사만
                 try:
                     pub_dt=parsedate_to_datetime(pub_raw)
                     if pub_dt.tzinfo is None:
@@ -209,7 +252,7 @@ def naver_news(now, limit=10):
                 if pub_kst.date()!=today:
                     continue
 
-                key=re.sub(r"\s+","",title)
+                key=re.sub(r"[^0-9A-Za-z가-힣]","",title)
                 if not title or key in seen:
                     continue
 
@@ -224,11 +267,13 @@ def naver_news(now, limit=10):
             print(f"NAVER NEWS WARNING [{query}]: {e}")
 
     collected.sort(key=lambda x:x["_published"],reverse=True)
-
     out=[{"title":x["title"],"url":x["url"]} for x in collected[:limit]]
 
     if not out:
-        return [{"title":"오늘 날짜로 등록된 네이버 부동산 주요뉴스가 아직 없습니다. 다음 자동 업데이트 때 다시 확인해주세요.","url":""}]
+        return [{
+            "title":"오늘 날짜의 네이버 부동산 주요뉴스가 아직 없습니다. 다음 자동 업데이트 때 다시 확인해주세요.",
+            "url":""
+        }]
 
     return out
 

@@ -119,26 +119,58 @@ def strip_tags(s):
 def naver_news(query, limit=10):
     cid=os.getenv("NAVER_CLIENT_ID","").strip()
     secret=os.getenv("NAVER_CLIENT_SECRET","").strip()
+
     if not cid or not secret:
         print("WARNING: NAVER_CLIENT_ID 또는 NAVER_CLIENT_SECRET이 GitHub Secrets에서 전달되지 않았습니다.")
         return [{"title":"[설정 필요] GitHub Secrets에 NAVER_CLIENT_ID와 NAVER_CLIENT_SECRET을 등록해주세요.","url":""}]
-    q=urllib.parse.urlencode({"query":query,"display":50,"start":1,"sort":"date","format":"json"})
+
+    # 검색 결과를 넉넉하게 받아온 뒤, 네이버 뉴스 내부 URL만 골라냅니다.
+    q=urllib.parse.urlencode({
+        "query":query,
+        "display":100,
+        "start":1,
+        "sort":"date",
+        "format":"json"
+    })
     url="https://naverapihub.apigw.ntruss.com/search/v1/news?"+q
+
     headers={
         "User-Agent":"Mozilla/5.0",
         "X-NCP-APIGW-API-KEY-ID":cid,
         "X-NCP-APIGW-API-KEY":secret,
     }
+
     j=get_json(url,headers=headers)
-    out=[]; seen=set()
+    out=[]
+    seen=set()
+
     for it in j.get("items",[]):
         title=strip_tags(it.get("title",""))
-        link=(it.get("link") or it.get("originallink") or "").strip()
+
+        # 네이버 뉴스에 입점된 기사만 표시합니다.
+        # link가 네이버 뉴스 URL일 때만 통과시킵니다.
+        link=(it.get("link") or "").strip()
+
+        if not (
+            "n.news.naver.com/" in link
+            or "news.naver.com/" in link
+            or "m.news.naver.com/" in link
+        ):
+            continue
+
         key=re.sub(r"\s+","",title)
-        if not title or key in seen: continue
+        if not title or key in seen:
+            continue
+
         seen.add(key)
         out.append({"title":title,"url":link})
-        if len(out)>=limit: break
+
+        if len(out)>=limit:
+            break
+
+    if not out:
+        return [{"title":"네이버 뉴스 내부 기사 검색결과가 없습니다. 잠시 후 다시 확인해주세요.","url":""}]
+
     return out
 
 def positive_comment(now, weather):
@@ -152,7 +184,7 @@ def positive_comment(now, weather):
         "토":"잠시 속도를 늦추고 자신을 채우는 것도 앞으로 나아가는 과정입니다. 좋은 사람과 좋은 시간을 보내세요.",
         "일":"새로운 한 주를 준비하는 날입니다. 걱정보다 기대할 일을 하나 만들어두면 내일이 훨씬 가벼워집니다."
     }
-    return f"💛 오늘의 긍정코멘트\n\n{phrases[weekday]}"
+    return phrases[weekday]
 
 now=datetime.now(KST)
 weekday="월화수목금토일"[now.weekday()]

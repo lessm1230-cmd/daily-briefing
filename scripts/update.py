@@ -1,6 +1,7 @@
 from pathlib import Path
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from email.utils import parsedate_to_datetime
 import json, os, re, html, urllib.request, urllib.parse, xml.etree.ElementTree as ET
 from korean_lunar_calendar import KoreanLunarCalendar
 
@@ -116,7 +117,7 @@ def google_headlines(limit=11):
 def strip_tags(s):
     return html.unescape(re.sub(r"<[^>]+>","",s or "")).strip()
 
-def naver_news(query, limit=10):
+def naver_news(now, limit=10):
     cid=os.getenv("NAVER_CLIENT_ID","").strip()
     secret=os.getenv("NAVER_CLIENT_SECRET","").strip()
 
@@ -124,52 +125,87 @@ def naver_news(query, limit=10):
         print("WARNING: NAVER_CLIENT_ID 또는 NAVER_CLIENT_SECRET이 GitHub Secrets에서 전달되지 않았습니다.")
         return [{"title":"[설정 필요] GitHub Secrets에 NAVER_CLIENT_ID와 NAVER_CLIENT_SECRET을 등록해주세요.","url":""}]
 
-    # 검색 결과를 넉넉하게 받아온 뒤, 네이버 뉴스 내부 URL만 골라냅니다.
-    q=urllib.parse.urlencode({
-        "query":query,
-        "display":100,
-        "start":1,
-        "sort":"date",
-        "format":"json"
-    })
-    url="https://naverapihub.apigw.ntruss.com/search/v1/news?"+q
-
     headers={
         "User-Agent":"Mozilla/5.0",
         "X-NCP-APIGW-API-KEY-ID":cid,
         "X-NCP-APIGW-API-KEY":secret,
     }
 
-    j=get_json(url,headers=headers)
-    out=[]
+    # 한 검색어만 쓰면 당일 기사 수가 부족할 수 있어 여러 부동산 핵심 검색어를 합칩니다.
+    queries=[
+        "부동산",
+        "아파트",
+        "주택 공급",
+        "청약 분양",
+        "재건축 재개발"
+    ]
+
+    today = now.astimezone(KST).date()
+    collected=[]
     seen=set()
 
-    for it in j.get("items",[]):
-        title=strip_tags(it.get("title",""))
+    for query in queries:
+        q=urllib.parse.urlencode({
+            "query":query,
+            "display":100,
+            "start":1,
+            "sort":"date",
+            "format":"json"
+        })
+        url="https://naverapihub.apigw.ntruss.com/search/v1/news?"+q
+        j=get_json(url,headers=headers)
 
-        # 네이버 뉴스에 입점된 기사만 표시합니다.
-        # link가 네이버 뉴스 URL일 때만 통과시킵니다.
-        link=(it.get("link") or "").strip()
+        for it in j.get("items",[]):
+            title=strip_tags(it.get("title",""))
+            link=(it.get("link") or "").strip()
+            pub_raw=(it.get("pubDate") or "").strip()
 
-        if not (
-            "n.news.naver.com/" in link
-            or "news.naver.com/" in link
-            or "m.news.naver.com/" in link
-        ):
-            continue
+            # 네이버 뉴스 내부 링크만 사용
+            if not (
+                "n.news.naver.com/" in link
+                or "news.naver.com/" in link
+                or "m.news.naver.com/" in link
+            ):
+                continue
 
-        key=re.sub(r"\s+","",title)
-        if not title or key in seen:
-            continue
+            # 기사 발행일을 한국시간으로 변환해서 '오늘' 기사만 통과
+            try:
+                pub_dt = parsedate_to_datetime(pub_raw)
+                if pub_dt.tzinfo is None:
+                    pub_dt = pub_dt.replace(tzinfo=KST)
+                pub_kst = pub_dt.astimezone(KST)
+            except Exception:
+                continue
 
-        seen.add(key)
-        out.append({"title":title,"url":link})
+            if pub_kst.date() != today:
+                continue
 
-        if len(out)>=limit:
-            break
+            key=re.sub(r"\s+","",title)
+            if not title or key in seen:
+                continue
+
+            seen.add(key)
+            collected.append({
+                "title":title,
+                "url":link,
+                "_published":pub_kst
+            })
+
+    # 최신 발행 시각 순으로 정렬
+    collected.sort(key=lambda x: x["_published"], reverse=True)
+
+    out=[]
+    for item in collected[:limit]:
+        out.append({
+            "title":item["title"],
+            "url":item["url"]
+        })
 
     if not out:
-        return [{"title":"네이버 뉴스 내부 기사 검색결과가 없습니다. 잠시 후 다시 확인해주세요.","url":""}]
+        return [{
+            "title":"오늘 날짜로 등록된 네이버 부동산 주요뉴스가 아직 없습니다. 다음 자동 업데이트 때 다시 확인해주세요.",
+            "url":""
+        }]
 
     return out
 
@@ -190,7 +226,7 @@ now=datetime.now(KST)
 weekday="월화수목금토일"[now.weekday()]
 wtext=weather_text(now)
 headlines=google_headlines(11)
-realestate=naver_news("부동산 OR 아파트 OR 주택 OR 분양 OR 청약",10)
+realestate=naver_news(now,10)
 
 payload={
     "date_label":f"{now:%Y년 %-m월 %-d일} {weekday}요일",
@@ -200,7 +236,7 @@ payload={
         {"title":"🌤️ 오늘의 날씨","text":wtext},
         {"title":"💛 아침 헤드라인 뉴스","number_items":True,
          "items":[{"title":x} for x in headlines]},
-        {"title":"🏠 부동산 주요뉴스","number_items":False,
+        {"title":f"{str(now.year)[2:]}년 {now.month}월 {now.day}일 {weekday}요일 부동산 주요뉴스","number_items":False,
          "items":realestate},
         {"title":"🌱 오늘의 긍정코멘트 한마디","text":positive_comment(now,wtext)}
     ]

@@ -1,5 +1,5 @@
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from email.utils import parsedate_to_datetime
 import json, os, re, html, time, urllib.request, urllib.parse, xml.etree.ElementTree as ET
@@ -201,7 +201,10 @@ def naver_news(now, limit=10):
         "야구","축구","농구","코인","비트코인","증시","주식"
     ]
 
-    today=now.astimezone(KST).date()
+    run_now = now.astimezone(KST)
+    window_start = (run_now - timedelta(days=1)).replace(hour=18, minute=0, second=0, microsecond=0)
+    window_end = run_now
+
     collected=[]
     seen=set()
 
@@ -240,7 +243,7 @@ def naver_news(now, limit=10):
                 if not is_realestate_title(title):
                     continue
 
-                # 오늘 날짜 기사만
+                # 전날 18:00 ~ 현재 실행시각 사이 기사만
                 try:
                     pub_dt=parsedate_to_datetime(pub_raw)
                     if pub_dt.tzinfo is None:
@@ -249,7 +252,7 @@ def naver_news(now, limit=10):
                 except Exception:
                     continue
 
-                if pub_kst.date()!=today:
+                if not (window_start <= pub_kst <= window_end):
                     continue
 
                 key=re.sub(r"[^0-9A-Za-z가-힣]","",title)
@@ -271,7 +274,7 @@ def naver_news(now, limit=10):
 
     if not out:
         return [{
-            "title":"오늘 날짜의 네이버 부동산 주요뉴스가 아직 없습니다. 다음 자동 업데이트 때 다시 확인해주세요.",
+            "title":"전날 오후 6시 이후의 네이버 부동산 주요뉴스가 아직 없습니다. 다음 자동 업데이트 때 다시 확인해주세요.",
             "url":""
         }]
 

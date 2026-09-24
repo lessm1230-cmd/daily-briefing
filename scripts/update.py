@@ -120,7 +120,8 @@ def naver_news(query, limit=10):
     cid=os.getenv("NAVER_CLIENT_ID","").strip()
     secret=os.getenv("NAVER_CLIENT_SECRET","").strip()
     if not cid or not secret:
-        return [{"title":"네이버 API 키를 등록하면 오늘의 부동산 주요뉴스가 자동으로 표시됩니다.","url":""}]
+        print("WARNING: NAVER_CLIENT_ID 또는 NAVER_CLIENT_SECRET이 GitHub Secrets에서 전달되지 않았습니다.")
+        return [{"title":"[설정 필요] GitHub Secrets에 NAVER_CLIENT_ID와 NAVER_CLIENT_SECRET을 등록해주세요.","url":""}]
     q=urllib.parse.urlencode({"query":query,"display":50,"start":1,"sort":"date","format":"json"})
     url="https://naverapihub.apigw.ntruss.com/search/v1/news?"+q
     headers={
@@ -163,11 +164,13 @@ payload={
     "date_label":f"{now:%Y년 %-m월 %-d일} {weekday}요일",
     "updated_at":now.strftime("%H:%M"),
     "sections":[
-        {"title":"1. 🔮 오늘의 운세","text":fortune_text(now)},
-        {"title":"2. 🌤️ 오늘의 날씨","text":wtext},
-        {"title":"3. 💛 아침 헤드라인 뉴스","items":[{"title":x} for x in headlines]},
-        {"title":"4. 🏠 부동산 주요뉴스","items":realestate},
-        {"title":"5. 🌱 오늘의 긍정코멘트 한마디","text":positive_comment(now,wtext)}
+        {"title":"🔮 오늘의 운세","text":fortune_text(now)},
+        {"title":"🌤️ 오늘의 날씨","text":wtext},
+        {"title":"💛 아침 헤드라인 뉴스","number_items":True,
+         "items":[{"title":x} for x in headlines]},
+        {"title":"🏠 부동산 주요뉴스","number_items":False,
+         "items":realestate},
+        {"title":"🌱 오늘의 긍정코멘트 한마디","text":positive_comment(now,wtext)}
     ]
 }
 DATA.write_text(json.dumps(payload,ensure_ascii=False,indent=2),encoding="utf-8")

@@ -40,3 +40,20 @@ Actions → Daily Briefing Update & Deploy → Run workflow
 
 ### 4) 자동 실행
 매일 한국시간 오전 7시 5분경 자동 실행됩니다.
+
+
+## v4 변경사항
+- 섹션 제목 앞의 1., 2., 3., 4., 5. 제거
+- 아침 헤드라인만 1~11 번호 유지
+- 부동산 뉴스는 번호 없이 `제목 + 링크`로 표시/복사
+- NAVER 비밀키가 전달되지 않으면 Actions 로그에 경고 표시
+
+## 부동산 뉴스가 안 나오면
+GitHub 저장소:
+Settings → Secrets and variables → Actions → Repository secrets
+
+정확히 아래 두 이름이 있어야 합니다.
+- NAVER_CLIENT_ID
+- NAVER_CLIENT_SECRET
+
+등록 후 Actions에서 다시 `Run workflow`를 실행하세요.

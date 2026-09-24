@@ -54,7 +54,8 @@ function sectionToText(s){
   if(s.text) out+=s.text.trim()+"\n";
   if(s.items){
     s.items.forEach((x,i)=>{
-      out += `${i+1}. ${x.title||''}\n`;
+      const prefix = s.number_items ? `${i+1}. ` : "";
+      out += `${prefix}${x.title||''}\n`;
       if(x.url) out += `${x.url}\n`;
       if(x.summary) out += `${x.summary}\n`;
       out += "\n";
@@ -77,7 +78,9 @@ function renderSection(s){
     const list=document.createElement('div');
     s.items.forEach((x,i)=>{
       const item=document.createElement('div'); item.className='item';
-      const title=document.createElement('div'); title.className='item-title'; title.textContent=`${i+1}. ${x.title||''}`; item.appendChild(title);
+      const title=document.createElement('div'); title.className='item-title';
+      title.textContent=(s.number_items ? `${i+1}. ` : "") + (x.title||'');
+      item.appendChild(title);
       if(x.url){ const a=document.createElement('a'); a.className='link'; a.href=x.url; a.target='_blank'; a.rel='noopener'; a.textContent=x.url; item.appendChild(a); }
       list.appendChild(item);
     });

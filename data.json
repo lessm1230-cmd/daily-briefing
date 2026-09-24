@@ -16,7 +16,8 @@
         {
           "title": "최초 자동 실행 후 최신 헤드라인이 표시됩니다."
         }
-      ]
+      ],
+      "number_items": true
     },
     {
       "title": "4. 🏠 부동산 주요뉴스",
@@ -25,7 +26,8 @@
           "title": "NAVER API HUB 키 등록 후 네이버 뉴스 검색결과가 표시됩니다.",
           "url": ""
         }
-      ]
+      ],
+      "number_items": false
     },
     {
       "title": "5. 🌱 오늘의 긍정코멘트 한마디",

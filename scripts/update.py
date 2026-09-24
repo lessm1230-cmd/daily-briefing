@@ -2,7 +2,7 @@ from pathlib import Path
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from email.utils import parsedate_to_datetime
-import json, os, re, html, urllib.request, urllib.parse, xml.etree.ElementTree as ET
+import json, os, re, html, time, urllib.request, urllib.parse, xml.etree.ElementTree as ET
 from korean_lunar_calendar import KoreanLunarCalendar
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -38,10 +38,18 @@ FORTUNE_SENTENCES = [
     "예상 밖의 연락이나 소식이 새로운 계기가 될 수 있다."
 ]
 
-def get_json(url, headers=None):
-    req=urllib.request.Request(url, headers=headers or {"User-Agent":"Mozilla/5.0"})
-    with urllib.request.urlopen(req, timeout=25) as r:
-        return json.loads(r.read().decode("utf-8"))
+def get_json(url, headers=None, retries=3, timeout=12):
+    req = urllib.request.Request(url, headers=headers or {"User-Agent":"Mozilla/5.0"})
+    last_err = None
+    for attempt in range(retries):
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return json.loads(r.read().decode("utf-8"))
+        except Exception as e:
+            last_err = e
+            if attempt < retries - 1:
+                time.sleep(2 * (attempt + 1))
+    raise last_err
 
 def weather_emoji(code):
     if code == 0: return "☀️"
@@ -55,63 +63,98 @@ def weather_emoji(code):
     return "☁️"
 
 def weather_text(now):
-    weekday="월화수목금토일"[now.weekday()]
-    lines=["❒ 지역별 날씨전망 ❒", ""]
+    lines = ["❒ 지역별 날씨전망 ❒", ""]
+    ok_count = 0
+
     for name,(lat,lon) in CITIES.items():
-        q=urllib.parse.urlencode({
+        q = urllib.parse.urlencode({
             "latitude":lat,"longitude":lon,
             "hourly":"weather_code",
             "daily":"temperature_2m_max,temperature_2m_min",
             "timezone":"Asia/Seoul","forecast_days":1
         })
-        j=get_json("https://api.open-meteo.com/v1/forecast?"+q)
-        times=j["hourly"]["time"]; codes=j["hourly"]["weather_code"]
-        morning_key=now.strftime("%Y-%m-%d")+"T08:00"
-        afternoon_key=now.strftime("%Y-%m-%d")+"T15:00"
-        mcode=codes[times.index(morning_key)] if morning_key in times else codes[8]
-        acode=codes[times.index(afternoon_key)] if afternoon_key in times else codes[15]
-        lo=round(j["daily"]["temperature_2m_min"][0]); hi=round(j["daily"]["temperature_2m_max"][0])
-        lines.append(f"✫{name}({weather_emoji(mcode)})➠({weather_emoji(acode)})  {lo}℃ ~ {hi}℃")
+        url = "https://api.open-meteo.com/v1/forecast?" + q
+
+        try:
+            j = get_json(url, retries=3, timeout=12)
+            times = j["hourly"]["time"]
+            codes = j["hourly"]["weather_code"]
+
+            morning_key = now.strftime("%Y-%m-%d") + "T08:00"
+            afternoon_key = now.strftime("%Y-%m-%d") + "T15:00"
+
+            mcode = codes[times.index(morning_key)] if morning_key in times else codes[8]
+            acode = codes[times.index(afternoon_key)] if afternoon_key in times else codes[15]
+
+            lo = round(j["daily"]["temperature_2m_min"][0])
+            hi = round(j["daily"]["temperature_2m_max"][0])
+
+            lines.append(f"✫{name}({weather_emoji(mcode)})➠({weather_emoji(acode)})  {lo}℃ ~ {hi}℃")
+            ok_count += 1
+
+        except Exception as e:
+            # 한 도시의 날씨 API가 잠시 실패해도 전체 브리핑 생성은 계속 진행
+            print(f"WEATHER WARNING [{name}]: {e}")
+            lines.append(f"✫{name} 날씨정보 일시 지연")
+
+    if ok_count == 0:
+        lines.append("")
+        lines.append("※ 날씨 제공 서버 응답이 지연되고 있습니다. 다음 자동 업데이트에서 다시 시도합니다.")
+
     return "\n".join(lines)
 
 def fortune_text(now):
-    cal=KoreanLunarCalendar()
+    cal = KoreanLunarCalendar()
     cal.setSolarDate(now.year, now.month, now.day)
-    gapja=cal.getGapJaString()
-    # ex: "병오년 정유월 신사일"
-    day_ganji=""
-    m=re.search(r"([가-힣]{2})일", gapja)
-    if m: day_ganji=m.group(1)
+    gapja = cal.getGapJaString()
+    day_ganji = ""
+    m = re.search(r"([가-힣]{2})일", gapja)
+    if m:
+        day_ganji = m.group(1)
+
     lines=[f"[음력 {cal.lunarMonth}월 {cal.lunarDay}일] 일진: {day_ganji}",""]
     seed=now.year*10000+now.month*100+now.day
+
     for idx,(name,years) in enumerate(ZODIAC):
-        # Deterministic original text: same date => same fortune, next date => changes.
         a=FORTUNE_SENTENCES[(seed+idx*3)%len(FORTUNE_SENTENCES)]
         b=FORTUNE_SENTENCES[(seed+idx*3+5)%len(FORTUNE_SENTENCES)]
         c=FORTUNE_SENTENCES[(seed+idx*3+9)%len(FORTUNE_SENTENCES)]
+
         score=34+((seed*7+idx*13)%61)
         money=max(30,min(95,score+(((idx+1)*7)%11-5)))
         health=max(30,min(95,score+(((idx+2)*5)%11-5)))
         love=max(30,min(95,score+(((idx+3)*3)%11-5)))
+
         yr=", ".join(f"{y:02d}" if y<10 else str(y) for y in years[:2])+"년생"
         others=", ".join(f"{y:02d}" if y<10 else str(y) for y in years[2:])
-        lines += [f"〈{name}〉","",f"{yr} {a} {others}년생 {b} {c}","",
-                  f"운세지수 {score}%. 금전 {money} 건강 {health} 애정 {love}",""]
+
+        lines += [
+            f"〈{name}〉","",
+            f"{yr} {a} {others}년생 {b} {c}","",
+            f"운세지수 {score}%. 금전 {money} 건강 {health} 애정 {love}",""
+        ]
     return "\n".join(lines).strip()
 
 def google_headlines(limit=11):
-    url="https://news.google.com/rss?"+urllib.parse.urlencode({"hl":"ko","gl":"KR","ceid":"KR:ko"})
-    req=urllib.request.Request(url,headers={"User-Agent":"Mozilla/5.0"})
-    with urllib.request.urlopen(req,timeout=25) as r: raw=r.read()
-    root=ET.fromstring(raw)
-    out=[]
-    for node in root.findall(".//item"):
-        title=(node.findtext("title") or "").strip()
-        # Google News often appends publisher name after " - "
-        title=re.sub(r"\s+-\s+[^-]+$","",title).strip()
-        if title and title not in out: out.append(title)
-        if len(out)>=limit: break
-    return out
+    try:
+        url="https://news.google.com/rss?"+urllib.parse.urlencode({"hl":"ko","gl":"KR","ceid":"KR:ko"})
+        req=urllib.request.Request(url,headers={"User-Agent":"Mozilla/5.0"})
+        with urllib.request.urlopen(req,timeout=15) as r:
+            raw=r.read()
+
+        root=ET.fromstring(raw)
+        out=[]
+        for node in root.findall(".//item"):
+            title=(node.findtext("title") or "").strip()
+            title=re.sub(r"\s+-\s+[^-]+$","",title).strip()
+            if title and title not in out:
+                out.append(title)
+            if len(out)>=limit:
+                break
+        return out
+    except Exception as e:
+        print("HEADLINE WARNING:", e)
+        return ["헤드라인 뉴스 서버 응답이 지연되고 있습니다. 다음 자동 업데이트에서 다시 시도합니다."]
 
 def strip_tags(s):
     return html.unescape(re.sub(r"<[^>]+>","",s or "")).strip()
@@ -130,85 +173,66 @@ def naver_news(now, limit=10):
         "X-NCP-APIGW-API-KEY":secret,
     }
 
-    # 한 검색어만 쓰면 당일 기사 수가 부족할 수 있어 여러 부동산 핵심 검색어를 합칩니다.
-    queries=[
-        "부동산",
-        "아파트",
-        "주택 공급",
-        "청약 분양",
-        "재건축 재개발"
-    ]
-
-    today = now.astimezone(KST).date()
+    queries=["부동산","아파트","주택 공급","청약 분양","재건축 재개발"]
+    today=now.astimezone(KST).date()
     collected=[]
     seen=set()
 
     for query in queries:
-        q=urllib.parse.urlencode({
-            "query":query,
-            "display":100,
-            "start":1,
-            "sort":"date",
-            "format":"json"
-        })
-        url="https://naverapihub.apigw.ntruss.com/search/v1/news?"+q
-        j=get_json(url,headers=headers)
-
-        for it in j.get("items",[]):
-            title=strip_tags(it.get("title",""))
-            link=(it.get("link") or "").strip()
-            pub_raw=(it.get("pubDate") or "").strip()
-
-            # 네이버 뉴스 내부 링크만 사용
-            if not (
-                "n.news.naver.com/" in link
-                or "news.naver.com/" in link
-                or "m.news.naver.com/" in link
-            ):
-                continue
-
-            # 기사 발행일을 한국시간으로 변환해서 '오늘' 기사만 통과
-            try:
-                pub_dt = parsedate_to_datetime(pub_raw)
-                if pub_dt.tzinfo is None:
-                    pub_dt = pub_dt.replace(tzinfo=KST)
-                pub_kst = pub_dt.astimezone(KST)
-            except Exception:
-                continue
-
-            if pub_kst.date() != today:
-                continue
-
-            key=re.sub(r"\s+","",title)
-            if not title or key in seen:
-                continue
-
-            seen.add(key)
-            collected.append({
-                "title":title,
-                "url":link,
-                "_published":pub_kst
+        try:
+            q=urllib.parse.urlencode({
+                "query":query,"display":100,"start":1,"sort":"date","format":"json"
             })
+            url="https://naverapihub.apigw.ntruss.com/search/v1/news?"+q
+            j=get_json(url,headers=headers,retries=2,timeout=15)
 
-    # 최신 발행 시각 순으로 정렬
-    collected.sort(key=lambda x: x["_published"], reverse=True)
+            for it in j.get("items",[]):
+                title=strip_tags(it.get("title",""))
+                link=(it.get("link") or "").strip()
+                pub_raw=(it.get("pubDate") or "").strip()
 
-    out=[]
-    for item in collected[:limit]:
-        out.append({
-            "title":item["title"],
-            "url":item["url"]
-        })
+                if not (
+                    "n.news.naver.com/" in link
+                    or "news.naver.com/" in link
+                    or "m.news.naver.com/" in link
+                ):
+                    continue
+
+                try:
+                    pub_dt=parsedate_to_datetime(pub_raw)
+                    if pub_dt.tzinfo is None:
+                        pub_dt=pub_dt.replace(tzinfo=KST)
+                    pub_kst=pub_dt.astimezone(KST)
+                except Exception:
+                    continue
+
+                if pub_kst.date()!=today:
+                    continue
+
+                key=re.sub(r"\s+","",title)
+                if not title or key in seen:
+                    continue
+
+                seen.add(key)
+                collected.append({
+                    "title":title,
+                    "url":link,
+                    "_published":pub_kst
+                })
+
+        except Exception as e:
+            print(f"NAVER NEWS WARNING [{query}]: {e}")
+
+    collected.sort(key=lambda x:x["_published"],reverse=True)
+
+    out=[{"title":x["title"],"url":x["url"]} for x in collected[:limit]]
 
     if not out:
-        return [{
-            "title":"오늘 날짜로 등록된 네이버 부동산 주요뉴스가 아직 없습니다. 다음 자동 업데이트 때 다시 확인해주세요.",
-            "url":""
-        }]
+        return [{"title":"오늘 날짜로 등록된 네이버 부동산 주요뉴스가 아직 없습니다. 다음 자동 업데이트 때 다시 확인해주세요.","url":""}]
 
     return out
 
-def positive_comment(now, weather):
+def positive_comment(now):
     weekday="월화수목금토일"[now.weekday()]
     phrases={
         "월":"새로운 한 주가 시작됐습니다. 큰 결정보다 오늘 할 수 있는 한 가지를 끝내는 것부터 시작해보세요.",
@@ -223,6 +247,7 @@ def positive_comment(now, weather):
 
 now=datetime.now(KST)
 weekday="월화수목금토일"[now.weekday()]
+
 wtext=weather_text(now)
 headlines=google_headlines(11)
 realestate=naver_news(now,10)
@@ -235,10 +260,11 @@ payload={
         {"title":f"{now:%Y년 %-m월 %-d일} {weekday}요일","text":wtext},
         {"title":"💛 아침 헤드라인 뉴스","number_items":True,
          "items":[{"title":x} for x in headlines]},
-        {"title":f"{str(now.year)[2:]}년 {now.month}월 {now.day}일 {weekday}요일 부동산 주요뉴스","number_items":False,
-         "items":realestate},
-        {"title":"🌱 오늘의 긍정코멘트 한마디","text":positive_comment(now,wtext)}
+        {"title":f"{str(now.year)[2:]}년 {now.month}월 {now.day}일 {weekday}요일 부동산 주요뉴스",
+         "number_items":False,"items":realestate},
+        {"title":"🌱 오늘의 긍정코멘트 한마디","text":positive_comment(now)}
     ]
 }
+
 DATA.write_text(json.dumps(payload,ensure_ascii=False,indent=2),encoding="utf-8")
 print("updated",DATA)

@@ -56,7 +56,7 @@ def weather_emoji(code):
 
 def weather_text(now):
     weekday="월화수목금토일"[now.weekday()]
-    lines=[f"{now:%Y년 %-m월 %-d일} {weekday}요일", "❒ 지역별 날씨전망 ❒", ""]
+    lines=["❒ 지역별 날씨전망 ❒", ""]
     for name,(lat,lon) in CITIES.items():
         q=urllib.parse.urlencode({
             "latitude":lat,"longitude":lon,
@@ -82,8 +82,7 @@ def fortune_text(now):
     day_ganji=""
     m=re.search(r"([가-힣]{2})일", gapja)
     if m: day_ganji=m.group(1)
-    title=f"오늘의 운세, {now.month}월 {now.day}일"
-    lines=[title,"",f"[음력 {cal.lunarMonth}월 {cal.lunarDay}일] 일진: {day_ganji}",""]
+    lines=[f"[음력 {cal.lunarMonth}월 {cal.lunarDay}일] 일진: {day_ganji}",""]
     seed=now.year*10000+now.month*100+now.day
     for idx,(name,years) in enumerate(ZODIAC):
         # Deterministic original text: same date => same fortune, next date => changes.
@@ -232,8 +231,8 @@ payload={
     "date_label":f"{now:%Y년 %-m월 %-d일} {weekday}요일",
     "updated_at":now.strftime("%H:%M"),
     "sections":[
-        {"title":"🔮 오늘의 운세","text":fortune_text(now)},
-        {"title":"🌤️ 오늘의 날씨","text":wtext},
+        {"title":f"오늘의 운세, {now.month}월 {now.day}일","text":fortune_text(now)},
+        {"title":f"{now:%Y년 %-m월 %-d일} {weekday}요일","text":wtext},
         {"title":"💛 아침 헤드라인 뉴스","number_items":True,
          "items":[{"title":x} for x in headlines]},
         {"title":f"{str(now.year)[2:]}년 {now.month}월 {now.day}일 {weekday}요일 부동산 주요뉴스","number_items":False,

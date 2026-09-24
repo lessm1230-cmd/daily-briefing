@@ -5,53 +5,111 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>오늘의 브리핑</title>
   <style>
-    :root{--bg:#f6f7fb;--card:#fff;--text:#202124;--muted:#6b7280;--line:#e5e7eb;--accent:#2563eb}
+    :root{
+      --bg:#f5f6fa;--card:#fff;--text:#202124;--muted:#6b7280;
+      --line:#e5e7eb;--accent:#2563eb;--dark:#111827;
+    }
     *{box-sizing:border-box}
-    body{margin:0;font-family:Pretendard,"Noto Sans KR",system-ui,sans-serif;background:var(--bg);color:var(--text)}
-    .wrap{max-width:980px;margin:0 auto;padding:28px 18px 70px}
-    .top{display:flex;gap:16px;align-items:flex-start;justify-content:space-between;margin-bottom:22px}
-    h1{font-size:28px;margin:0 0 6px}.meta{color:var(--muted);font-size:14px}
-    .refresh,.copy,.copyall{border:1px solid var(--line);background:#fff;border-radius:10px;padding:9px 12px;cursor:pointer}
-    .copyall{background:#111827;color:#fff;border-color:#111827;margin-left:8px}
-    .section{background:var(--card);border:1px solid var(--line);border-radius:16px;margin:14px 0;padding:18px;box-shadow:0 2px 8px rgba(0,0,0,.03)}
-    .section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
-    .section h2{font-size:19px;margin:0}.copy{font-size:13px}.copy:hover{background:#eef2ff}
-    .body{white-space:pre-wrap;line-height:1.74;font-size:15px}
-    .item{padding:11px 0;border-top:1px dashed var(--line)}.item:first-child{border-top:0;padding-top:0}
-    .item-title{font-weight:700;line-height:1.55}.link{display:inline-block;margin-top:4px;color:var(--accent);text-decoration:none;word-break:break-all}
-    .footer{color:var(--muted);font-size:12px;margin-top:18px;text-align:center}
-    #toast{position:fixed;right:18px;bottom:18px;background:#111827;color:#fff;padding:11px 14px;border-radius:10px;opacity:0;transform:translateY(8px);transition:.2s;pointer-events:none}
+    body{
+      margin:0;
+      font-family:Pretendard,"Noto Sans KR",system-ui,sans-serif;
+      background:var(--bg);color:var(--text)
+    }
+    .wrap{max-width:980px;margin:0 auto;padding:18px 14px 40px}
+    .top{
+      position:sticky;top:0;z-index:10;
+      background:rgba(245,246,250,.95);backdrop-filter:blur(8px);
+      display:flex;align-items:center;justify-content:space-between;
+      gap:10px;padding:10px 0 12px;margin-bottom:6px
+    }
+    .titlebox h1{font-size:24px;margin:0 0 4px}
+    .meta{font-size:13px;color:var(--muted)}
+    .toolbar{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+    button{
+      font:inherit;border:1px solid var(--line);background:#fff;color:var(--text);
+      border-radius:9px;padding:8px 10px;cursor:pointer
+    }
+    button:hover{background:#f8fafc}
+    .copyall{background:var(--dark);color:#fff;border-color:var(--dark)}
+    .section{
+      background:var(--card);border:1px solid var(--line);border-radius:12px;
+      margin:8px 0;box-shadow:0 1px 4px rgba(0,0,0,.025);overflow:hidden
+    }
+    .section-head{
+      display:flex;align-items:center;gap:8px;
+      padding:10px 12px;min-height:48px
+    }
+    .section-title{
+      flex:1;font-weight:800;font-size:16px;line-height:1.35;
+      cursor:pointer;user-select:none
+    }
+    .actions{display:flex;gap:6px;flex-shrink:0}
+    .toggle,.copy{padding:7px 9px;font-size:12px}
+    .section-content{
+      border-top:1px solid var(--line);
+      padding:13px 14px 15px
+    }
+    .section.collapsed .section-content{display:none}
+    .section.collapsed{margin:6px 0}
+    .section.collapsed .section-head{min-height:44px;padding:7px 10px}
+    .body{white-space:pre-wrap;line-height:1.72;font-size:14px}
+    .item{padding:9px 0;border-top:1px dashed var(--line)}
+    .item:first-child{border-top:0;padding-top:0}
+    .item-title{font-weight:700;line-height:1.5;font-size:14px}
+    .link{display:inline-block;margin-top:3px;color:var(--accent);text-decoration:none;word-break:break-all;font-size:13px}
+    .footer{font-size:11px;color:var(--muted);text-align:center;margin-top:12px}
+    #toast{
+      position:fixed;right:18px;bottom:18px;background:#111827;color:#fff;
+      padding:10px 13px;border-radius:9px;opacity:0;transform:translateY(8px);
+      transition:.2s;pointer-events:none;z-index:30
+    }
     #toast.show{opacity:1;transform:none}
-    @media(max-width:640px){h1{font-size:23px}.wrap{padding:18px 12px 55px}.section{padding:15px}.top{align-items:center}}
+    @media(max-width:680px){
+      .wrap{padding:10px 8px 28px}
+      .top{align-items:flex-start;flex-direction:column}
+      .toolbar{width:100%;justify-content:flex-start}
+      .titlebox h1{font-size:21px}
+      .section-head{padding:8px 9px}
+      .section-title{font-size:15px}
+      .actions{gap:4px}
+      .toggle,.copy{padding:6px 7px}
+    }
   </style>
 </head>
 <body>
 <div class="wrap">
   <div class="top">
-    <div>
+    <div class="titlebox">
       <h1>🗂️ 오늘의 브리핑</h1>
       <div class="meta" id="meta">불러오는 중...</div>
     </div>
-    <div>
-      <button class="refresh" onclick="loadData()">↻ 새로고침</button>
+    <div class="toolbar">
+      <button onclick="collapseAll()">▾ 모두 접기</button>
+      <button onclick="expandAll()">▴ 모두 펼치기</button>
       <button class="copyall" onclick="copyAll()">📋 전체복사</button>
     </div>
   </div>
+
   <div id="content"></div>
-  <div class="footer">매일 자동 갱신 · 각 항목의 복사 버튼을 누르면 카카오톡/메모장 등에 바로 붙여넣을 수 있습니다.</div>
+  <div class="footer">제목을 누르면 펼치기/접기 · 각 항목은 접힌 상태에서도 바로 복사할 수 있습니다.</div>
 </div>
+
 <div id="toast">복사했습니다</div>
+
 <script>
 let latestData=null;
+
 function copyText(text){
   navigator.clipboard.writeText(text).then(()=>{
-    const t=document.getElementById('toast'); t.classList.add('show');
-    setTimeout(()=>t.classList.remove('show'),1200);
+    const t=document.getElementById('toast');
+    t.classList.add('show');
+    setTimeout(()=>t.classList.remove('show'),1100);
   });
 }
+
 function sectionToText(s){
-  let out=s.title+"\n\n";
-  if(s.text) out+=s.text.trim()+"\n";
+  let out = s.title ? s.title + "\n\n" : "";
+  if(s.text) out += s.text.trim() + "\n";
   if(s.items){
     s.items.forEach((x,i)=>{
       const prefix = s.number_items ? `${i+1}. ` : "";
@@ -63,39 +121,122 @@ function sectionToText(s){
   }
   return out.trim();
 }
+
 function copyAll(){
   if(!latestData) return;
   copyText(latestData.sections.map(sectionToText).join("\n\n──────────────\n\n"));
 }
+
+function setCollapsed(sectionEl, collapsed){
+  sectionEl.classList.toggle('collapsed', collapsed);
+  const btn=sectionEl.querySelector('.toggle');
+  btn.textContent = collapsed ? '펼치기' : '접기';
+}
+
+function collapseAll(){
+  document.querySelectorAll('.section').forEach(el=>setCollapsed(el,true));
+  localStorage.setItem('briefingCollapsed','1');
+}
+
+function expandAll(){
+  document.querySelectorAll('.section').forEach(el=>setCollapsed(el,false));
+  localStorage.setItem('briefingCollapsed','0');
+}
+
 function renderSection(s){
-  const wrap=document.createElement('section'); wrap.className='section';
-  const head=document.createElement('div'); head.className='section-head';
-  const h2=document.createElement('h2'); h2.textContent=s.title; head.appendChild(h2);
-  const btn=document.createElement('button'); btn.className='copy'; btn.textContent='📋 복사';
-  btn.onclick=()=>copyText(sectionToText(s)); head.appendChild(btn); wrap.appendChild(head);
-  if(s.text){ const b=document.createElement('div'); b.className='body'; b.textContent=s.text; wrap.appendChild(b); }
+  const wrap=document.createElement('section');
+  wrap.className='section collapsed';
+
+  const head=document.createElement('div');
+  head.className='section-head';
+
+  const title=document.createElement('div');
+  title.className='section-title';
+  title.textContent=s.title || '내용';
+  title.onclick=()=>setCollapsed(wrap,!wrap.classList.contains('collapsed'));
+  head.appendChild(title);
+
+  const actions=document.createElement('div');
+  actions.className='actions';
+
+  const toggle=document.createElement('button');
+  toggle.className='toggle';
+  toggle.textContent='펼치기';
+  toggle.onclick=()=>setCollapsed(wrap,!wrap.classList.contains('collapsed'));
+  actions.appendChild(toggle);
+
+  const copy=document.createElement('button');
+  copy.className='copy';
+  copy.textContent='📋 복사';
+  copy.onclick=()=>copyText(sectionToText(s));
+  actions.appendChild(copy);
+
+  head.appendChild(actions);
+  wrap.appendChild(head);
+
+  const content=document.createElement('div');
+  content.className='section-content';
+
+  if(s.text){
+    const body=document.createElement('div');
+    body.className='body';
+    body.textContent=s.text;
+    content.appendChild(body);
+  }
+
   if(s.items){
     const list=document.createElement('div');
     s.items.forEach((x,i)=>{
-      const item=document.createElement('div'); item.className='item';
-      const title=document.createElement('div'); title.className='item-title';
-      title.textContent=(s.number_items ? `${i+1}. ` : "") + (x.title||'');
-      item.appendChild(title);
-      if(x.url){ const a=document.createElement('a'); a.className='link'; a.href=x.url; a.target='_blank'; a.rel='noopener'; a.textContent=x.url; item.appendChild(a); }
+      const item=document.createElement('div');
+      item.className='item';
+
+      const itemTitle=document.createElement('div');
+      itemTitle.className='item-title';
+      itemTitle.textContent=(s.number_items ? `${i+1}. ` : '') + (x.title||'');
+      item.appendChild(itemTitle);
+
+      if(x.url){
+        const a=document.createElement('a');
+        a.className='link';
+        a.href=x.url;
+        a.target='_blank';
+        a.rel='noopener';
+        a.textContent=x.url;
+        item.appendChild(a);
+      }
       list.appendChild(item);
     });
-    wrap.appendChild(list);
+    content.appendChild(list);
   }
+
+  wrap.appendChild(content);
   return wrap;
 }
+
 async function loadData(){
   const res=await fetch('data.json?ts='+Date.now(),{cache:'no-store'});
   latestData=await res.json();
-  document.getElementById('meta').textContent=`${latestData.date_label} · 마지막 업데이트 ${latestData.updated_at}`;
-  const c=document.getElementById('content'); c.innerHTML='';
+
+  document.getElementById('meta').textContent=
+    `${latestData.date_label} · 마지막 업데이트 ${latestData.updated_at}`;
+
+  const c=document.getElementById('content');
+  c.innerHTML='';
+
   latestData.sections.forEach(s=>c.appendChild(renderSection(s)));
+
+  // 기본값: 모두 접힌 상태.
+  // 이전에 '모두 펼치기'를 선택한 경우에는 그 상태를 기억.
+  if(localStorage.getItem('briefingCollapsed')==='0'){
+    expandAll();
+  }else{
+    collapseAll();
+  }
 }
-loadData().catch(()=>document.getElementById('meta').textContent='data.json을 불러오지 못했습니다.');
+
+loadData().catch(()=>{
+  document.getElementById('meta').textContent='data.json을 불러오지 못했습니다.';
+});
 </script>
 </body>
 </html>

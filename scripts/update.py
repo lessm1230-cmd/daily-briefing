@@ -173,32 +173,63 @@ def naver_news(now, limit=10):
         "X-NCP-APIGW-API-KEY":secret,
     }
 
-    # 부동산 핵심 검색어
+    # 검색 후보군. 최종 노출 여부는 아래 relevance_score()가 다시 엄격하게 판단.
     queries=[
         "부동산",
-        "아파트",
         "집값",
+        "아파트 매매",
         "주택 공급",
         "청약 분양",
         "전세 월세",
-        "재건축 재개발"
+        "재건축 재개발",
+        "부동산 대출",
+        "토지거래허가"
     ]
 
-    # 제목에 아래 키워드가 하나 이상 있어야 최종 노출
-    include_keywords=[
-        "부동산","아파트","주택","집값","전세","월세","청약","분양",
-        "재건축","재개발","토허","토지거래허가","매매","임대","임차",
-        "공급","입주","미분양","주담대","주택담보","분양가","전셋값",
-        "월셋값","공시가격","정비사업","조합원","입주권","분양권",
-        "LH","한국토지주택공사","국토부","국토교통부","부동산원",
-        "용적률","건폐율","재정비","신도시","택지","오피스텔"
+    # '아파트' 같은 단어 하나만으로는 통과시키지 않는다.
+    # 아래 시장/정책/거래 핵심어가 제목에 실제로 들어가야 주요뉴스로 인정.
+    core_market_terms = [
+        "집값","아파트값","주택가격","매매가","전셋값","월셋값",
+        "매매","거래","거래량","거래절벽","신고가","최고가","상승","하락",
+        "청약","분양","분양가","미분양","완판","경쟁률","당첨",
+        "공급","입주","입주물량","착공","인허가",
+        "재건축","재개발","정비사업","모아타운","신속통합기획",
+        "토허","토지거래허가","규제지역","투기과열","조정대상",
+        "전세","월세","임대차","임대료","전세사기",
+        "주담대","주택담보대출","대출규제","LTV","DSR",
+        "공시가격","종부세","취득세","양도세",
+        "분양권","입주권","조합원","재초환","재건축초과이익",
+        "신도시","택지","공공주택","민간주택","주택시장","부동산시장"
     ]
 
-    # 부동산 키워드가 우연히 섞여도 아래 유형이면 제외
-    exclude_keywords=[
-        "연예","가수","배우","아이돌","TSMC","반도체","의사","병원",
-        "살인","사망","화재","대통령 지지율","정당","국민의힘","민주당",
-        "야구","축구","농구","코인","비트코인","증시","주식"
+    # 일반 주거 단어. 단독으로는 통과 불가.
+    housing_terms = [
+        "아파트","주택","오피스텔","빌라","상가","토지","부동산"
+    ]
+
+    # 일반 주거 단어와 함께 나오면 시장 기사로 볼 수 있는 맥락어.
+    market_context_terms = [
+        "가격","시세","거래","매수","매도","수요","공급","물량","청약","분양",
+        "상승","하락","급등","급락","회복","침체","전망","통계","지수","정책",
+        "규제","완화","대출","금리","세금","과세","공시","착공","인허가",
+        "입주","경쟁률","미분양","전세","월세","임대","재건축","재개발"
+    ]
+
+    # 부동산이라는 단어가 있어도 사건/사고/개인사 중심이면 제외.
+    hard_exclude_terms = [
+        "화재","불이 나","불나","심정지","사망","숨져","구조","대피",
+        "살인","폭행","추락","사고","실종","시신","범죄","절도","강도",
+        "상속분쟁","유산분쟁","이혼","가정폭력",
+        "연예","배우","가수","아이돌","스포츠","야구","축구","농구",
+        "반도체","TSMC","병원","의사","대통령 지지율","정당 지지율",
+        "코인","비트코인","증시","주식"
+    ]
+
+    # 주요뉴스 우선순위를 높이는 단어.
+    priority_terms = [
+        "서울","수도권","전국","국토부","국토교통부","한국부동산원","LH",
+        "집값","주택시장","부동산시장","공급","청약","분양","전세","재건축",
+        "재개발","토허","대출규제","DSR","LTV","금리"
     ]
 
     run_now = now.astimezone(KST)
@@ -208,11 +239,36 @@ def naver_news(now, limit=10):
     collected=[]
     seen=set()
 
-    def is_realestate_title(title):
-        compact = re.sub(r"\s+","",title)
-        if any(bad in compact for bad in exclude_keywords):
-            return False
-        return any(good in compact for good in include_keywords)
+    def compact(s):
+        return re.sub(r"\s+","",s or "")
+
+    def relevance_score(title):
+        t = compact(title)
+
+        if any(x in t for x in hard_exclude_terms):
+            return -999
+
+        score = 0
+
+        # 핵심 시장/정책 단어가 있으면 강한 가점
+        matched_core = sum(1 for x in core_market_terms if x in t)
+        score += matched_core * 3
+
+        # '아파트' 같은 일반 단어는 맥락어와 같이 있을 때만 의미 있게 가점
+        has_housing = any(x in t for x in housing_terms)
+        matched_context = sum(1 for x in market_context_terms if x in t)
+
+        if has_housing and matched_context:
+            score += 2 + matched_context
+
+        # 주요 지역/기관/정책 키워드 가점
+        score += sum(1 for x in priority_terms if x in t)
+
+        # '아파트'만 있고 시장 맥락이 없으면 제거
+        if has_housing and matched_core == 0 and matched_context == 0:
+            return -999
+
+        return score
 
     for query in queries:
         try:
@@ -231,7 +287,7 @@ def naver_news(now, limit=10):
                 link=(it.get("link") or "").strip()
                 pub_raw=(it.get("pubDate") or "").strip()
 
-                # 네이버 뉴스 내부 기사만
+                # 네이버 뉴스 내부 링크만 허용
                 if not (
                     "n.news.naver.com/" in link
                     or "news.naver.com/" in link
@@ -239,11 +295,10 @@ def naver_news(now, limit=10):
                 ):
                     continue
 
-                # 제목 자체가 부동산 기사인지 한 번 더 엄격하게 검사
-                if not is_realestate_title(title):
+                score = relevance_score(title)
+                if score < 4:
                     continue
 
-                # 전날 18:00 ~ 현재 실행시각 사이 기사만
                 try:
                     pub_dt=parsedate_to_datetime(pub_raw)
                     if pub_dt.tzinfo is None:
@@ -252,6 +307,7 @@ def naver_news(now, limit=10):
                 except Exception:
                     continue
 
+                # 전날 오후 6시 ~ 오늘 실행시각
                 if not (window_start <= pub_kst <= window_end):
                     continue
 
@@ -263,22 +319,43 @@ def naver_news(now, limit=10):
                 collected.append({
                     "title":title,
                     "url":link,
-                    "_published":pub_kst
+                    "_published":pub_kst,
+                    "_score":score
                 })
 
         except Exception as e:
             print(f"NAVER NEWS WARNING [{query}]: {e}")
 
-    collected.sort(key=lambda x:x["_published"],reverse=True)
-    out=[{"title":x["title"],"url":x["url"]} for x in collected[:limit]]
+    # 우선 '부동산 주요성' 점수가 높은 기사를 고르고,
+    # 같은 점수 안에서는 최신 기사 우선.
+    collected.sort(key=lambda x:(x["_score"], x["_published"]), reverse=True)
 
-    if not out:
+    # 제목이 거의 같은 중복 기사(동일 이슈 재탕) 추가 제거
+    final=[]
+    fingerprints=[]
+
+    def fingerprint(title):
+        t=compact(title)
+        for x in ["서울","수도권","전국","아파트","주택","부동산","시장","가격","관련"]:
+            t=t.replace(x,"")
+        return t[:18]
+
+    for x in collected:
+        fp=fingerprint(x["title"])
+        if fp and any(fp[:10] in old or old[:10] in fp for old in fingerprints if len(old)>=10):
+            continue
+        fingerprints.append(fp)
+        final.append({"title":x["title"],"url":x["url"]})
+        if len(final)>=limit:
+            break
+
+    if not final:
         return [{
-            "title":"전날 오후 6시 이후의 네이버 부동산 주요뉴스가 아직 없습니다. 다음 자동 업데이트 때 다시 확인해주세요.",
+            "title":"전날 오후 6시 이후의 주요 부동산 뉴스가 아직 없습니다. 다음 자동 업데이트 때 다시 확인해주세요.",
             "url":""
         }]
 
-    return out
+    return final
 
 def positive_comment(now):
     weekday="월화수목금토일"[now.weekday()]

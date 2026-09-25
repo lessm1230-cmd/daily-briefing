@@ -2,8 +2,8 @@ name: Daily Briefing Update & Deploy
 
 on:
   schedule:
-    # 22:05 UTC = 한국시간 다음날 오전 07:05
-    - cron: "5 22 * * *"
+    # 매일 한국시간 오전 6:30 (UTC 전날 21:30)
+    - cron: "30 21 * * *"
   workflow_dispatch:
 
 permissions:
@@ -35,11 +35,16 @@ jobs:
       - name: Install dependencies
         run: pip install korean-lunar-calendar
 
-      - name: Update today's data
+      - name: Update today's briefing
         env:
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
         run: python scripts/update.py
+
+      - name: Update today's subscription news
+        env:
+          DATA_GO_KR_API_KEY: ${{ secrets.DATA_GO_KR_API_KEY }}
+        run: python scripts/update_subscription.py
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

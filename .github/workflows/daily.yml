@@ -2,8 +2,8 @@ name: Daily Briefing Update & Deploy
 
 on:
   schedule:
-    # 매일 한국시간 오전 6:30 (UTC 전날 21:30)
-    - cron: "30 21 * * *"
+    - cron: "30 6 * * *"
+      timezone: "Asia/Seoul"
   workflow_dispatch:
 
 permissions:

@@ -18,26 +18,28 @@
     .wrap{max-width:980px;margin:0 auto;padding:18px 14px 40px}
     .top{
       position:sticky;top:0;z-index:10;
-      background:rgba(245,246,250,.95);backdrop-filter:blur(8px);
+      background:rgba(245,246,250,.96);backdrop-filter:blur(8px);
       display:flex;align-items:center;justify-content:space-between;
       gap:10px;padding:10px 0 12px;margin-bottom:6px
     }
     .titlebox h1{font-size:24px;margin:0 0 4px}
     .meta{font-size:13px;color:var(--muted)}
     .toolbar{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+
     button{
       font:inherit;border:1px solid var(--line);background:#fff;color:var(--text);
       border-radius:9px;padding:8px 10px;cursor:pointer
     }
     button:hover{background:#f8fafc}
     .copyall{background:var(--dark);color:#fff;border-color:var(--dark)}
+
     .section{
       background:var(--card);border:1px solid var(--line);border-radius:12px;
       margin:8px 0;box-shadow:0 1px 4px rgba(0,0,0,.025);overflow:hidden
     }
     .section-head{
       display:flex;align-items:center;gap:8px;
-      padding:10px 12px;min-height:48px
+      padding:10px 12px;min-height:46px
     }
     .section-title{
       flex:1;font-weight:800;font-size:16px;line-height:1.35;
@@ -45,25 +47,48 @@
     }
     .actions{display:flex;gap:6px;flex-shrink:0}
     .toggle,.copy{padding:7px 9px;font-size:12px}
+
+    /* 접힌 상태에서도 2줄 미리보기는 항상 보임 */
+    .preview{
+      border-top:1px solid var(--line);
+      padding:9px 14px 11px;
+      font-size:13px;
+      line-height:1.55;
+      color:#4b5563;
+      white-space:pre-line;
+      min-height:50px;
+    }
+
     .section-content{
       border-top:1px solid var(--line);
       padding:13px 14px 15px
     }
+
+    /* 접혔을 때는 전체본문만 숨기고 2줄 미리보기 유지 */
     .section.collapsed .section-content{display:none}
-    .section.collapsed{margin:6px 0}
-    .section.collapsed .section-head{min-height:44px;padding:7px 10px}
+    .section:not(.collapsed) .preview{display:none}
+
     .body{white-space:pre-wrap;line-height:1.72;font-size:14px}
     .item{padding:9px 0;border-top:1px dashed var(--line)}
     .item:first-child{border-top:0;padding-top:0}
     .item-title{font-weight:700;line-height:1.5;font-size:14px}
-    .link{display:inline-block;margin-top:3px;color:var(--accent);text-decoration:none;word-break:break-all;font-size:13px}
-    .footer{font-size:11px;color:var(--muted);text-align:center;margin-top:12px}
+    .link{
+      display:inline-block;margin-top:3px;color:var(--accent);
+      text-decoration:none;word-break:break-all;font-size:13px
+    }
+
+    .footer{
+      font-size:11px;color:var(--muted);
+      text-align:center;margin-top:12px
+    }
+
     #toast{
       position:fixed;right:18px;bottom:18px;background:#111827;color:#fff;
       padding:10px 13px;border-radius:9px;opacity:0;transform:translateY(8px);
       transition:.2s;pointer-events:none;z-index:30
     }
     #toast.show{opacity:1;transform:none}
+
     @media(max-width:680px){
       .wrap{padding:10px 8px 28px}
       .top{align-items:flex-start;flex-direction:column}
@@ -73,6 +98,7 @@
       .section-title{font-size:15px}
       .actions{gap:4px}
       .toggle,.copy{padding:6px 7px}
+      .preview{padding:8px 10px 9px;font-size:12.5px}
     }
   </style>
 </head>
@@ -83,7 +109,9 @@
       <h1>🗂️ 오늘의 브리핑</h1>
       <div class="meta" id="meta">불러오는 중...</div>
     </div>
+
     <div class="toolbar">
+      <button id="refreshBtn" onclick="forceRefresh()">↻ 최신내용</button>
       <button onclick="collapseAll()">▾ 모두 접기</button>
       <button onclick="expandAll()">▴ 모두 펼치기</button>
       <button class="copyall" onclick="copyAll()">📋 전체복사</button>
@@ -91,7 +119,10 @@
   </div>
 
   <div id="content"></div>
-  <div class="footer">제목을 누르면 펼치기/접기 · 각 항목은 접힌 상태에서도 바로 복사할 수 있습니다.</div>
+
+  <div class="footer">
+    접힌 상태에서는 약 2줄만 미리보기 · 펼치기를 누르면 전체 내용 · 복사는 항상 전체 내용으로 복사됩니다.
+  </div>
 </div>
 
 <div id="toast">복사했습니다</div>
@@ -107,9 +138,14 @@ function copyText(text){
   });
 }
 
+/* 복사는 접혀 있어도 항상 전체 내용 */
 function sectionToText(s){
   let out = s.title ? s.title + "\n\n" : "";
-  if(s.text) out += s.text.trim() + "\n";
+
+  if(s.text){
+    out += s.text.trim() + "\n";
+  }
+
   if(s.items){
     s.items.forEach((x,i)=>{
       const prefix = s.number_items ? `${i+1}. ` : "";
@@ -119,18 +155,46 @@ function sectionToText(s){
       out += "\n";
     });
   }
+
   return out.trim();
+}
+
+/* 접힌 카드에 보여줄 약 2줄짜리 미리보기 */
+function previewText(s){
+  const lines=[];
+
+  if(s.text){
+    s.text
+      .split(/\r?\n/)
+      .map(x=>x.trim())
+      .filter(Boolean)
+      .forEach(x=>lines.push(x));
+  }
+
+  if(s.items){
+    s.items.forEach((x,i)=>{
+      const prefix=s.number_items ? `${i+1}. ` : "";
+      if(x.title) lines.push(prefix+x.title.trim());
+    });
+  }
+
+  if(lines.length===0) return "내용이 없습니다.";
+  return lines.slice(0,2).join("\n");
 }
 
 function copyAll(){
   if(!latestData) return;
-  copyText(latestData.sections.map(sectionToText).join("\n\n──────────────\n\n"));
+  copyText(
+    latestData.sections
+      .map(sectionToText)
+      .join("\n\n──────────────\n\n")
+  );
 }
 
-function setCollapsed(sectionEl, collapsed){
-  sectionEl.classList.toggle('collapsed', collapsed);
+function setCollapsed(sectionEl,collapsed){
+  sectionEl.classList.toggle('collapsed',collapsed);
   const btn=sectionEl.querySelector('.toggle');
-  btn.textContent = collapsed ? '펼치기' : '접기';
+  btn.textContent=collapsed ? '펼치기' : '접기';
 }
 
 function collapseAll(){
@@ -153,7 +217,10 @@ function renderSection(s){
   const title=document.createElement('div');
   title.className='section-title';
   title.textContent=s.title || '내용';
-  title.onclick=()=>setCollapsed(wrap,!wrap.classList.contains('collapsed'));
+  title.onclick=()=>setCollapsed(
+    wrap,
+    !wrap.classList.contains('collapsed')
+  );
   head.appendChild(title);
 
   const actions=document.createElement('div');
@@ -162,7 +229,10 @@ function renderSection(s){
   const toggle=document.createElement('button');
   toggle.className='toggle';
   toggle.textContent='펼치기';
-  toggle.onclick=()=>setCollapsed(wrap,!wrap.classList.contains('collapsed'));
+  toggle.onclick=()=>setCollapsed(
+    wrap,
+    !wrap.classList.contains('collapsed')
+  );
   actions.appendChild(toggle);
 
   const copy=document.createElement('button');
@@ -174,6 +244,13 @@ function renderSection(s){
   head.appendChild(actions);
   wrap.appendChild(head);
 
+  /* 2줄 미리보기 */
+  const preview=document.createElement('div');
+  preview.className='preview';
+  preview.textContent=previewText(s);
+  wrap.appendChild(preview);
+
+  /* 전체 내용 */
   const content=document.createElement('div');
   content.className='section-content';
 
@@ -186,13 +263,15 @@ function renderSection(s){
 
   if(s.items){
     const list=document.createElement('div');
+
     s.items.forEach((x,i)=>{
       const item=document.createElement('div');
       item.className='item';
 
       const itemTitle=document.createElement('div');
       itemTitle.className='item-title';
-      itemTitle.textContent=(s.number_items ? `${i+1}. ` : '') + (x.title||'');
+      itemTitle.textContent=
+        (s.number_items ? `${i+1}. ` : '') + (x.title||'');
       item.appendChild(itemTitle);
 
       if(x.url){
@@ -204,8 +283,10 @@ function renderSection(s){
         a.textContent=x.url;
         item.appendChild(a);
       }
+
       list.appendChild(item);
     });
+
     content.appendChild(list);
   }
 
@@ -213,8 +294,32 @@ function renderSection(s){
   return wrap;
 }
 
+async function forceRefresh(){
+  const btn=document.getElementById('refreshBtn');
+  const oldText=btn.textContent;
+  btn.disabled=true;
+  btn.textContent='갱신 중...';
+
+  try{
+    await loadData();
+    btn.textContent='✓ 최신내용';
+  }catch(e){
+    console.error(e);
+    btn.textContent='갱신 실패';
+  }
+
+  setTimeout(()=>{
+    btn.textContent=oldText;
+    btn.disabled=false;
+  },1200);
+}
+
 async function loadData(){
-  const res=await fetch('data.json?ts='+Date.now(),{cache:'no-store'});
+  const res=await fetch(
+    'data.json?ts='+Date.now(),
+    {cache:'no-store'}
+  );
+
   latestData=await res.json();
 
   document.getElementById('meta').textContent=
@@ -223,10 +328,11 @@ async function loadData(){
   const c=document.getElementById('content');
   c.innerHTML='';
 
-  latestData.sections.forEach(s=>c.appendChild(renderSection(s)));
+  latestData.sections.forEach(
+    s=>c.appendChild(renderSection(s))
+  );
 
-  // 기본값: 모두 접힌 상태.
-  // 이전에 '모두 펼치기'를 선택한 경우에는 그 상태를 기억.
+  /* 기본은 모두 접힘 = 각 카드 2줄 미리보기 */
   if(localStorage.getItem('briefingCollapsed')==='0'){
     expandAll();
   }else{
@@ -235,7 +341,8 @@ async function loadData(){
 }
 
 loadData().catch(()=>{
-  document.getElementById('meta').textContent='data.json을 불러오지 못했습니다.';
+  document.getElementById('meta').textContent=
+    'data.json을 불러오지 못했습니다.';
 });
 </script>
 </body>
